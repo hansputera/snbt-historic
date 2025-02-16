@@ -26,16 +26,69 @@ const currentYear = Number.parseInt(year, 10);
 const currentDate = new Date();
 
 // Validate year entry
-const existingYear = await db.selectFrom('snbt_year')
-    .select(['dumped_at'])
+const existingYears = await db.selectFrom('snbt_year')
+    .select(['dumped_at', 'id'])
     .where('year', '=', currentYear)
+    .execute();
+
+let yearRefId: number = 0;
+
+if (existingYears.length) {
+    const sameMonthAndDate = existingYears.filter(y => {
+        const dumpedDate = new Date(y.dumped_at);
+        return dumpedDate.getDate() === currentDate.getDate() && 
+        dumpedDate.getMonth() === currentDate.getMonth();
+    });
+
+    if (sameMonthAndDate.length > 1) {
+        const needToDeletes = sameMonthAndDate.slice(1);
+        await db.deleteFrom('snbt_year').where('id', 'in', needToDeletes.map(n => n.id))
+            .execute();
+        yearRefId = sameMonthAndDate.at(0)!.id;
+    } else if (sameMonthAndDate.length === 1) {
+        const rowId = sameMonthAndDate.at(0)!.id;
+        const rows = await db.selectFrom('snbt_data').where('snbt_year_ref', '=', rowId)
+            .select('id').execute();
+        
+        if (rows.length) {
+            throw new Error('The dump is already exist on this year');
+        } else {
+            yearRefId = rowId;
+        }
+    } else {
+        const row = await db.insertInto('snbt_year')
+            .values({ year: currentYear })
+            .executeTakeFirst();
+
+        if (row) {
+            if (!row.insertId) {
+                const rows = await db.selectFrom('snbt_year').select('id').execute();
+                const lastRow = rows.at(-1);
+
+                yearRefId = lastRow!.id;
+            } else {
+                yearRefId = Number(row.insertId);
+            }
+        } else {
+            throw new Error('Failed to create SNBT year');
+        }
+    }
+} else {
+    const row = await db.insertInto('snbt_year')
+    .values({ year: currentYear })
     .executeTakeFirst();
 
-if (existingYear) {
-    const dumpedDate = new Date(existingYear.dumped_at);
-    if (dumpedDate.getDate() === currentDate.getDate() && 
-        dumpedDate.getMonth() === currentDate.getMonth()) {
-        throw new Error('This dump already exists in the database');
+    if (row) {
+        if (!row.insertId) {
+            const rows = await db.selectFrom('snbt_year').select('id').execute();
+            const lastRow = rows.at(-1);
+
+            yearRefId = lastRow!.id;
+        } else {
+            yearRefId = Number(row.insertId);
+        }
+    } else {
+        throw new Error('Failed to create SNBT year');
     }
 }
 
@@ -44,24 +97,16 @@ const fileSQL = new Database(filename, { readonly: true });
 const CHUNK_SIZE = 500; // Adjust based on SQLite parameter limits
 
 await db.transaction().execute(async trx => {
-    const yearInsert = await trx.insertInto('snbt_year')
-        .values({ year: currentYear })
-        .executeTakeFirst();
-
-    if (!yearInsert.insertId) {
-        throw new Error('Failed to insert SNBT year');
-    }
-
     const allRows = fileSQL.prepare('SELECT * FROM snbt_dump').all() as Row[];
     const inserts = [];
     
     for (const row of allRows) {
         inserts.push({
             is_scholarship: row.bidik_misi === 1,
-            name: row.name,
+            name: row.name.replace(/\s+/g, ' '),
             date_of_birth: row.date_of_birth,
             snbt_year: currentYear,
-            snbt_year_ref: Number(yearInsert.insertId),
+            snbt_year_ref: Number(yearRefId),
             utbk_number: row.utbk_no,
             accepted: row.passed === 1,
             university_code: row.ptn_code === 'None' ? null : Number(row.ptn_code),

@@ -15,7 +15,7 @@ export const Migration20250205Refs: Migration = {
       .addColumn("id", "integer", (col) => col.notNull().primaryKey().autoIncrement())
       .addColumn('snbt_year', 'integer', (col) => col.notNull())
       .addColumn("snbt_year_ref", "integer", (col) => col.notNull().references('snbt_year.id'))
-      .addColumn("utbk_number", sql`TEXT COLLATE NOCASE NOT NULL UNIQUE`)
+      .addColumn("utbk_number", sql`TEXT COLLATE NOCASE NOT NULL`)
       .addColumn("name", "text", (col) => col.notNull())
       .addColumn("date_of_birth", "text", (col) => col.notNull())
       .addColumn("is_scholarship", "boolean", (col) => col.notNull())
