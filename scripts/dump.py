@@ -11,7 +11,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 config = {
     'storage_url': 'https://storage.googleapis.com/pengumuman-snbt-2024-prod-looc9w6bbg/',
-    'max_concurrents': 100
+    'max_concurrents': 1000
 }
 
 # Set up logging

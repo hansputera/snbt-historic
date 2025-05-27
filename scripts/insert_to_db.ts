@@ -93,7 +93,7 @@ if (existingYears.length) {
 }
 
 // SQLite connection
-const fileSQL = new Database(filename, { readonly: true });
+const fileSQL = new Database(filename);
 const CHUNK_SIZE = 500; // Adjust based on SQLite parameter limits
 
 await db.transaction().execute(async trx => {
